@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Threat Map</title>
-<meta name="description" content="Real-time 3D cyber threat map showing simulated attack telemetry.">
+<meta name="description" content="3D cyber threat map showing simulated attack telemetry, or replayed public honeypot data when the server is set to replay.">
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -78,7 +78,7 @@
   #nogl { position: fixed; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; text-align: center; padding: 30px; color: var(--dim); }
   @media (max-width: 860px) {
     #stats { display: none; }
-    #ticker { top: auto; left: 12px; right: 12px; bottom: 64px; width: auto; height: 30vh; }
+    #ticker { top: auto; left: 12px; right: 12px; bottom: calc(var(--foot, 40px) + 22px); width: auto; height: 30vh; }
     footer { left: 14px; bottom: 10px; }
     header { left: 14px; }
     h1 { font-size: 18px; }
@@ -91,14 +91,14 @@
 
 <header>
   <h1>THREAT<span>//</span>MAP</h1>
-  <div class="sub">live attack telemetry</div>
+  <div class="sub" id="sub">live attack telemetry</div>
   <div class="badge"><span class="dot"></span><span id="mode">CONNECTING…</span></div>
 </header>
 
 <aside id="stats" class="panel">
   <div class="kpis">
-    <div class="kpi"><b id="k-total">0</b><small>events</small></div>
-    <div class="kpi"><b id="k-rate">0</b><small>per min</small></div>
+    <div class="kpi"><b id="k-total">0</b><small id="l-total">events</small></div>
+    <div class="kpi"><b id="k-rate">0</b><small id="l-rate">per min</small></div>
   </div>
   <h2>Top sources</h2>
   <div id="top-sources"></div>
@@ -112,7 +112,7 @@
   <div id="feed"></div>
 </aside>
 
-<footer>All events are synthetic. Source IPs come from the reserved 198.18.0.0/15 benchmarking range, so no real host is shown.</footer>
+<footer id="foot">All events are synthetic. Source IPs come from the reserved 198.18.0.0/15 benchmarking range, so no real host is shown.</footer>
 <div id="nogl">Couldn't load the 3D globe library. Check your connection and reload.</div>
 
 <script src="https://cdn.jsdelivr.net/npm/globe.gl@2"></script>
@@ -181,6 +181,11 @@
     return items[items.length - 1];
   }
   function setMode(text) { $('mode').textContent = text; }
+  // The footer text changes length, so on a narrow screen the feed panel sits above whatever height it has.
+  function fitFooter() { document.documentElement.style.setProperty('--foot', `${$('foot').offsetHeight}px`); }
+  fitFooter();
+  addEventListener('resize', fitFooter);
+  if (document.fonts) document.fonts.ready.then(fitFooter);
 
   if (typeof Globe !== 'function') { $('nogl').style.display = 'flex'; setMode('GLOBE UNAVAILABLE'); return; }
 
@@ -234,7 +239,8 @@
   // ---------- Stats + feed ----------
   const startedAt = Date.now();
   const arrivals = [];
-  const byCountry = {}, byType = {};
+  // Maps, not plain objects: country and attack type names come from the data source.
+  const byCountry = new Map(), byType = new Map();
   let total = 0;
 
   function renderStats() {
@@ -244,7 +250,7 @@
     const elapsed = Math.max(1, Math.min(60, (now - startedAt) / 1000));
     $('k-rate').textContent = Math.round((arrivals.length / elapsed) * 60);
 
-    const top = Object.entries(byCountry).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const top = [...byCountry].sort((a, b) => b[1] - a[1]).slice(0, 6);
     const max = top.length ? top[0][1] : 1;
     const box = $('top-sources');
     box.replaceChildren();
@@ -263,7 +269,7 @@
     for (const [key, c] of Object.entries(CATALOG)) {
       const row = el('div', 'legend');
       row.style.setProperty('--c', c.color);
-      row.append(el('span', 'sw'), el('span', 'nm', c.label), el('span', 'ct', String(byType[key] || 0)));
+      row.append(el('span', 'sw'), el('span', 'nm', c.label), el('span', 'ct', String(byType.get(key) || 0)));
       tbox.append(row);
     }
   }
@@ -274,7 +280,11 @@
     const item = el('div', 'item');
     item.style.setProperty('--c', c.color);
     const top = el('div', 'top');
-    top.append(el('span', 't', new Date(ev.ts).toLocaleTimeString([], { hour12: false })), el('span', 'sev', `SEV ${ev.severity}`));
+    // Replayed events show when they happened in the original data, not when they were replayed.
+    const when = ev.original_ts
+      ? new Date(ev.original_ts).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+      : new Date(ev.ts).toLocaleTimeString([], { hour12: false });
+    top.append(el('span', 't', when), el('span', 'sev', `SEV ${ev.severity}`));
     item.append(
       top,
       el('div', 'route', `${ev.src.city} → ${ev.dst.name}`),
@@ -289,7 +299,7 @@
 
   // ---------- Event handling ----------
   function onEvent(ev) {
-    const c = CATALOG[ev.attack_type] || FALLBACK;
+    const c = Object.hasOwn(CATALOG, ev.attack_type) ? CATALOG[ev.attack_type] : FALLBACK;
     const arc = { id: ev.id, startLat: ev.src.lat, startLng: ev.src.lng, endLat: ev.dst.lat, endLng: ev.dst.lng, color: c.color };
     const pt = { id: ev.id, lat: ev.src.lat, lng: ev.src.lng, color: c.color, radius: 0.3 };
     arcs.push(arc);
@@ -311,8 +321,8 @@
 
     total += 1;
     arrivals.push(Date.now());
-    byCountry[ev.src.country] = (byCountry[ev.src.country] || 0) + 1;
-    byType[ev.attack_type] = (byType[ev.attack_type] || 0) + 1;
+    byCountry.set(ev.src.country, (byCountry.get(ev.src.country) || 0) + 1);
+    byType.set(ev.attack_type, (byType.get(ev.attack_type) || 0) + 1);
     addTicker(ev, c);
   }
 
@@ -343,16 +353,53 @@
              country: s[0], city: s[1], lat: Math.max(-90, Math.min(90, s[2] + jitter())), lng: s[3] + jitter() },
       dst: { name: t[0], lat: t[1], lng: t[2] },
       simulated: true,
+      source: 'browser',
+      dataset: null,
+      original_ts: null,
     };
   }
   function startDemo() {
     if (demoTimer !== null) return;
+    describeFeed({ simulated: true });
     setMode('SIMULATED FEED · BROWSER');
     const tick = () => {
       onEvent(makeDemoEvent());
       demoTimer = setTimeout(tick, (-Math.log(1 - Math.random()) / demoRate) * 1000);
     };
     tick();
+  }
+
+  // The badge, footer and stat labels follow what the server says it is sending. Only an event
+  // marked simulated=false switches the page to the "replayed" wording, so real data is never
+  // labelled synthetic and synthetic data never gets the replay badge.
+  // It runs on every (re)connection, so it also puts the synthetic wording back if the server
+  // was restarted in the other mode while the page stayed open.
+  const SYNTHETIC_TEXT = {
+    sub: $('sub').textContent, total: $('l-total').textContent,
+    rate: $('l-rate').textContent, foot: $('foot').textContent,
+  };
+  let lastReplayed = null;
+  function describeFeed(ev) {
+    const replayed = ev.simulated === false;
+    // Totals from the other kind of data must not carry over under the new wording.
+    if (lastReplayed !== null && replayed !== lastReplayed) {
+      total = 0;
+      arrivals.length = 0;
+      byCountry.clear();
+      byType.clear();
+      $('feed').replaceChildren();
+    }
+    lastReplayed = replayed;
+    setMode(replayed ? 'REPLAYED PUBLIC DATA · SERVER' : 'SIMULATED FEED · SERVER');
+    $('sub').textContent = replayed ? 'replayed attack telemetry' : SYNTHETIC_TEXT.sub;
+    $('l-total').textContent = replayed ? 'events (replayed)' : SYNTHETIC_TEXT.total;
+    $('l-rate').textContent = replayed ? 'per min (replay speed)' : SYNTHETIC_TEXT.rate;
+    $('foot').textContent = replayed
+      ? `Replayed public honeypot data: ${ev.dataset || 'dataset not named'}. Converted for display. `
+        + 'Source places are the dataset\'s own city-level lookups and no addresses are shown. '
+        + 'Target sites are fictional. Totals count every event replayed since the page opened.'
+      : SYNTHETIC_TEXT.foot;
+    fitFooter();
   }
 
   // ---------- Live mode: WebSocket to the FastAPI server, else fall back to demo ----------
@@ -366,8 +413,11 @@
     } catch (_) { startDemo(); return; }
     const timer = setTimeout(() => { if (!gotEvent) { ws.close(); startDemo(); } }, 3500);
     ws.onmessage = (m) => {
-      if (!gotEvent) { gotEvent = true; clearTimeout(timer); setMode('SIMULATED FEED · SERVER'); }
-      try { onEvent(JSON.parse(m.data)); } catch (_) { /* ignore malformed frames */ }
+      try {
+        const ev = JSON.parse(m.data);
+        if (!gotEvent) { gotEvent = true; clearTimeout(timer); describeFeed(ev); }
+        onEvent(ev);
+      } catch (_) { /* ignore malformed frames */ }
     };
     ws.onclose = () => {
       clearTimeout(timer);

@@ -1,8 +1,8 @@
 """Synthetic attack-event generator.
 
 Produces realistic-looking (but entirely fake) attack events so the project runs
-anywhere with no honeypot, API keys or network access. Later phases swap this for
-real sources behind the same AttackEvent model.
+anywhere with no honeypot, API keys or network access. It is the default source;
+backend/sources/ can replay a file of public data through the same AttackEvent model.
 """
 
 from __future__ import annotations

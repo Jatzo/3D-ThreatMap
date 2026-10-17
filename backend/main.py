@@ -1,9 +1,10 @@
-"""FastAPI app: streams simulated attack events over a WebSocket and serves the UI."""
+"""FastAPI app: streams attack events (simulated or replayed) over a WebSocket and serves the UI."""
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import os
 from collections import Counter, deque
 from collections.abc import AsyncIterator
@@ -14,10 +15,11 @@ from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
 from .models import AttackEvent
-from .simulator import AttackSimulator
+from .sources import EventSource, ReplaySource, SimulatorSource
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 RECENT_MAX = 200
+logger = logging.getLogger(__name__)
 
 
 class Hub:
@@ -56,18 +58,42 @@ class Hub:
                 self.disconnect(ws)
 
 
-def create_app(rate: float | None = None, seed: int | None = None) -> FastAPI:
-    rate = rate if rate is not None else float(os.getenv("TM_RATE", "2.0"))
-    if seed is None and os.getenv("TM_SEED"):
-        seed = int(os.environ["TM_SEED"])
+def build_source(rate: float | None, seed: int | None) -> EventSource:
+    """Pick the event source from TM_SOURCE. Any bad setting stops the server at start-up."""
+    kind = os.getenv("TM_SOURCE", "sim")
+    if kind == "sim":
+        rate = rate if rate is not None else float(os.getenv("TM_RATE", "2.0"))
+        if seed is None and os.getenv("TM_SEED"):
+            seed = int(os.environ["TM_SEED"])
+        return SimulatorSource(rate, seed)
+    if kind == "replay":
+        path = os.getenv("TM_REPLAY_FILE")
+        if not path:
+            raise ValueError(
+                "TM_SOURCE=replay needs TM_REPLAY_FILE, the path of a file made by "
+                "tools/convert_cyberlab.py."
+            )
+        return ReplaySource(Path(path), float(os.getenv("TM_REPLAY_SPEED", "1.0")))
+    raise ValueError(f"TM_SOURCE must be 'sim' or 'replay', not {kind!r}.")
 
+
+def create_app(
+    rate: float | None = None, seed: int | None = None, source: EventSource | None = None
+) -> FastAPI:
+    source = source or build_source(rate, seed)
     hub = Hub()
-    simulator = AttackSimulator(seed=seed)
 
     async def produce() -> None:
-        async for event in simulator.stream(rate):
-            hub.record(event)
-            await hub.broadcast(event)
+        try:
+            async for event in source.stream():
+                hub.record(event)
+                await hub.broadcast(event)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # Without this the task would end silently and the page would just go quiet.
+            logger.exception("The event source stopped, so no more events will be sent.")
+            raise
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -86,7 +112,7 @@ def create_app(rate: float | None = None, seed: int | None = None) -> FastAPI:
     async def health() -> dict:
         return {
             "status": "ok",
-            "mode": "simulated",
+            "mode": source.mode,
             "clients": len(hub.clients),
             "events_total": hub.total,
         }
