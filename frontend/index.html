@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Threat Map</title>
+<meta name="description" content="Real-time 3D cyber threat map showing simulated attack telemetry.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #04060f;
+    --panel: rgba(8, 14, 30, .62);
+    --line: rgba(39, 240, 255, .22);
+    --cyan: #27f0ff;
+    --text: #cfe8ff;
+    --dim: #6f88a8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; color: var(--text);
+    background: radial-gradient(1200px 800px at 50% 40%, #0a1330 0%, #04060f 60%, #02030a 100%);
+    font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  }
+  #globe { position: fixed; inset: 0; }
+  .scan {
+    position: fixed; inset: 0; pointer-events: none; z-index: 4; mix-blend-mode: overlay;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 1px, transparent 1px 3px);
+  }
+  header { position: fixed; top: 18px; left: 22px; z-index: 5; }
+  h1 {
+    margin: 0; font: 800 22px/1 'Orbitron', sans-serif; letter-spacing: .18em; color: #fff;
+    text-shadow: 0 0 14px var(--cyan);
+  }
+  h1 span { color: var(--cyan); }
+  .sub { margin-top: 6px; font-size: 11px; color: var(--dim); letter-spacing: .12em; text-transform: uppercase; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; padding: 4px 10px;
+    border: 1px solid var(--line); border-radius: 999px; font-size: 10.5px; letter-spacing: .1em;
+    background: var(--panel); backdrop-filter: blur(8px);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #39ff88; box-shadow: 0 0 8px #39ff88; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .panel {
+    position: fixed; z-index: 5; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; backdrop-filter: blur(8px); padding: 14px 16px;
+  }
+  .panel h2 { margin: 0 0 10px; font-size: 10.5px; letter-spacing: .2em; color: var(--cyan); text-transform: uppercase; font-weight: 600; }
+  #stats { left: 22px; top: 132px; width: 280px; max-height: calc(100vh - 190px); overflow: hidden; }
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .kpi b { display: block; font: 600 24px/1.1 'Orbitron', sans-serif; color: #fff; text-shadow: 0 0 10px rgba(39,240,255,.5); }
+  .kpi small { font-size: 10px; color: var(--dim); letter-spacing: .12em; text-transform: uppercase; }
+  .row { display: grid; grid-template-columns: 96px 1fr 34px; align-items: center; gap: 8px; font-size: 11.5px; margin: 5px 0; }
+  .row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .ct { text-align: right; color: var(--dim); }
+  .bar { height: 5px; background: rgba(255,255,255,.07); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--c, var(--cyan)); box-shadow: 0 0 8px var(--c, var(--cyan)); transition: width .5s; }
+  .legend { display: grid; grid-template-columns: 10px 1fr 34px; align-items: center; gap: 8px; font-size: 11.5px; margin: 5px 0; }
+  .legend .sw { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+  .legend .ct { text-align: right; color: var(--dim); }
+  .gap { height: 14px; }
+  #ticker { right: 22px; top: 18px; bottom: 18px; width: 340px; display: flex; flex-direction: column; }
+  #feed { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+  .item {
+    border-left: 2px solid var(--c); padding: 4px 0 4px 10px; cursor: pointer; animation: slide .45s ease-out;
+    background: linear-gradient(90deg, rgba(255,255,255,.04), transparent);
+  }
+  .item:hover { background: linear-gradient(90deg, rgba(255,255,255,.09), transparent); }
+  @keyframes slide { from { opacity: 0; transform: translateX(14px); } }
+  .item .top { display: flex; justify-content: space-between; font-size: 10px; color: var(--dim); }
+  .item .sev { color: var(--c); letter-spacing: .1em; }
+  .item .route { font-size: 13px; color: #fff; margin: 2px 0; }
+  .item .meta { font-size: 10.5px; color: var(--c); }
+  .item .det { font-size: 10.5px; color: var(--dim); }
+  footer { position: fixed; left: 22px; bottom: 16px; z-index: 5; font-size: 10px; color: var(--dim); letter-spacing: .06em; max-width: 440px; }
+  #nogl { position: fixed; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; text-align: center; padding: 30px; color: var(--dim); }
+  @media (max-width: 860px) {
+    #stats { display: none; }
+    #ticker { top: auto; left: 12px; right: 12px; bottom: 34px; width: auto; height: 30vh; }
+    footer { left: 14px; bottom: 10px; }
+    header { left: 14px; }
+    h1 { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+<div id="globe"></div>
+<div class="scan"></div>
+
+<header>
+  <h1>THREAT<span>//</span>MAP</h1>
+  <div class="sub">live attack telemetry</div>
+  <div class="badge"><span class="dot"></span><span id="mode">CONNECTING…</span></div>
+</header>
+
+<aside id="stats" class="panel">
+  <div class="kpis">
+    <div class="kpi"><b id="k-total">0</b><small>events</small></div>
+    <div class="kpi"><b id="k-rate">0</b><small>per min</small></div>
+  </div>
+  <h2>Top sources</h2>
+  <div id="top-sources"></div>
+  <div class="gap"></div>
+  <h2>Attack types</h2>
+  <div id="types"></div>
+</aside>
+
+<aside id="ticker" class="panel">
+  <h2>Live feed</h2>
+  <div id="feed"></div>
+</aside>
+
+<footer>All events are synthetic. Source IPs come from the reserved 198.18.0.0/15 benchmarking range, so no real host is shown.</footer>
+<div id="nogl">Couldn't load the 3D globe library. Check your connection and reload.</div>
+
+<script src="https://cdn.jsdelivr.net/npm/globe.gl@2"></script>
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Catalog (mirrors backend/catalog.py; a test keeps the keys in sync) ----------
+  const CATALOG = {
+    ssh_bruteforce:  { label: 'SSH brute force',  color: '#ff3b6b', ports: [22, 2222], service: 'ssh', mitre: ['T1110.001', 'Password Guessing'], sev: 2, weight: 30,
+      details: ['login attempt as {username}', 'dictionary attack as {username}'], users: ['root', 'admin', 'ubuntu', 'pi', 'user', 'test', 'oracle', 'git', 'deploy'] },
+    telnet_botnet:   { label: 'Telnet botnet',    color: '#ff9f1c', ports: [23, 2323], service: 'telnet', mitre: ['T1110.003', 'Password Spraying'], sev: 3, weight: 18,
+      details: ['default-credential spray as {username}', 'IoT login sweep as {username}'], users: ['root', 'admin', 'support', 'default', 'supervisor', 'guest'] },
+    rdp_bruteforce:  { label: 'RDP brute force',  color: '#39ff88', ports: [3389], service: 'rdp', mitre: ['T1110.001', 'Password Guessing'], sev: 3, weight: 10,
+      details: ['RDP login attempt as {username}', 'NLA credential guess as {username}'], users: ['administrator', 'admin', 'user', 'guest', 'scanner'] },
+    port_scan:       { label: 'Port scan',        color: '#2ec4ff', ports: [21, 22, 23, 25, 80, 443, 445, 3306, 3389, 5900, 8080], service: 'tcp', mitre: ['T1046', 'Network Service Discovery'], sev: 1, weight: 25,
+      details: ['SYN sweep', 'service banner grab', 'wide subnet probe'], users: [] },
+    web_exploit:     { label: 'Web exploit',      color: '#b967ff', ports: [80, 443, 8080, 8443], service: 'http', mitre: ['T1190', 'Exploit Public-Facing Application'], sev: 4, weight: 12,
+      details: ['/.env probe', 'JNDI lookup attempt', 'path traversal attempt', 'admin panel probe', 'SQL injection probe'], users: [] },
+    malware_dropper: { label: 'Malware dropper',  color: '#ffe66d', ports: [22, 23, 2222], service: 'shell', mitre: ['T1105', 'Ingress Tool Transfer'], sev: 5, weight: 5,
+      details: ['wget-and-run dropper script', 'cryptominer fetch', 'Mirai-style binary fetch'], users: [] },
+  };
+  const FALLBACK = { label: 'Unknown', color: '#ffffff' };
+
+  // [country, city, lat, lng, weight]
+  const SOURCES = [
+    ['China', 'Beijing', 39.90, 116.41, 16], ['China', 'Shanghai', 31.23, 121.47, 8],
+    ['United States', 'Ashburn', 39.04, -77.49, 10], ['United States', 'Dallas', 32.78, -96.80, 5],
+    ['Russia', 'Moscow', 55.76, 37.62, 9], ['India', 'Mumbai', 19.08, 72.88, 6],
+    ['Brazil', 'São Paulo', -23.55, -46.63, 6], ['Germany', 'Frankfurt', 50.11, 8.68, 4],
+    ['Netherlands', 'Amsterdam', 52.37, 4.90, 5], ['Vietnam', 'Hanoi', 21.03, 105.85, 5],
+    ['South Korea', 'Seoul', 37.57, 126.98, 5], ['Indonesia', 'Jakarta', -6.21, 106.85, 4],
+    ['Iran', 'Tehran', 35.69, 51.39, 3], ['Ukraine', 'Kyiv', 50.45, 30.52, 3],
+    ['Turkey', 'Istanbul', 41.01, 28.98, 3], ['Romania', 'Bucharest', 44.43, 26.10, 3],
+    ['Egypt', 'Cairo', 30.04, 31.24, 2], ['Nigeria', 'Lagos', 6.52, 3.38, 2],
+    ['South Africa', 'Johannesburg', -26.20, 28.05, 2], ['Argentina', 'Buenos Aires', -34.60, -58.38, 2],
+    ['Mexico', 'Mexico City', 19.43, -99.13, 2], ['Thailand', 'Bangkok', 13.76, 100.50, 3],
+    ['Pakistan', 'Karachi', 24.86, 67.01, 2], ['Taiwan', 'Taipei', 25.03, 121.57, 3],
+    ['Singapore', 'Singapore', 1.35, 103.82, 3], ['France', 'Paris', 48.86, 2.35, 2],
+    ['United Kingdom', 'London', 51.51, -0.13, 2], ['Australia', 'Sydney', -33.87, 151.21, 2],
+    ['Japan', 'Tokyo', 35.68, 139.69, 2], ['Poland', 'Warsaw', 52.23, 21.01, 2],
+  ];
+  // [name, lat, lng]
+  const SENSORS = [
+    ['London', 51.51, -0.13], ['Frankfurt', 50.11, 8.68], ['N. Virginia', 39.04, -77.49],
+    ['Oregon', 45.52, -122.68], ['Singapore', 1.35, 103.82], ['Sydney', -33.87, 151.21], ['São Paulo', -23.55, -46.63],
+  ];
+
+  // ---------- Helpers ----------
+  const params = new URLSearchParams(location.search);
+  const $ = (id) => document.getElementById(id);
+  // Build DOM with textContent only. Never innerHTML: once real honeypot data is wired in,
+  // fields like usernames are attacker-controlled and must not be able to inject markup.
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+  const hexToRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const rgba = (h, a) => { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; };
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  function pickWeighted(items, weightOf) {
+    let r = Math.random() * items.reduce((s, it) => s + weightOf(it), 0);
+    for (const it of items) { r -= weightOf(it); if (r <= 0) return it; }
+    return items[items.length - 1];
+  }
+  function setMode(text) { $('mode').textContent = text; }
+
+  if (typeof Globe !== 'function') { $('nogl').style.display = 'flex'; setMode('GLOBE UNAVAILABLE'); return; }
+
+  // ---------- Globe ----------
+  const MAX_ARCS = 70, MAX_FEED = 14;
+  let arcs = [], points = [], rings = [];
+  const sensorPoints = SENSORS.map(([name, lat, lng]) => ({ lat, lng, color: '#27f0ff', radius: 0.5, name }));
+
+  const world = Globe()($('globe'))
+    .width(innerWidth).height(innerHeight)
+    .globeImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg')
+    .bumpImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png')
+    .backgroundColor('rgba(0,0,0,0)')
+    .atmosphereColor('#27f0ff').atmosphereAltitude(0.2)
+    .arcsData([]).arcStartLat('startLat').arcStartLng('startLng').arcEndLat('endLat').arcEndLng('endLng')
+    .arcColor((d) => [rgba(d.color, 0.08), d.color])
+    .arcAltitudeAutoScale(0.5).arcStroke(0.5)
+    .arcDashLength(0.45).arcDashGap(0.6).arcDashAnimateTime(1400).arcsTransitionDuration(0)
+    .pointsData(sensorPoints).pointLat('lat').pointLng('lng')
+    .pointColor((d) => d.color).pointAltitude(0.012).pointRadius((d) => d.radius || 0.3)
+    .ringsData([]).ringLat('lat').ringLng('lng')
+    .ringColor((d) => (t) => rgba(d.color, 1 - t))
+    .ringMaxRadius(5).ringPropagationSpeed(3.2).ringRepeatPeriod(700);
+
+  world.pointOfView({ lat: 25, lng: 10, altitude: 2.3 });
+  const controls = world.controls();
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.55;
+  let resumeTimer = null;
+  controls.addEventListener('start', () => { controls.autoRotate = false; clearTimeout(resumeTimer); });
+  controls.addEventListener('end', () => { resumeTimer = setTimeout(() => { controls.autoRotate = true; }, 5000); });
+  addEventListener('resize', () => world.width(innerWidth).height(innerHeight));
+
+  let refreshQueued = false;
+  function refresh() {
+    if (refreshQueued) return;
+    refreshQueued = true;
+    requestAnimationFrame(() => {
+      refreshQueued = false;
+      world.arcsData(arcs).pointsData([...sensorPoints, ...points]).ringsData(rings);
+    });
+  }
+  function focusOn(ev) {
+    controls.autoRotate = false;
+    clearTimeout(resumeTimer);
+    world.pointOfView({ lat: ev.src.lat, lng: ev.src.lng, altitude: 1.7 }, 900);
+    resumeTimer = setTimeout(() => { controls.autoRotate = true; }, 6000);
+  }
+
+  // ---------- Stats + feed ----------
+  const startedAt = Date.now();
+  const arrivals = [];
+  const byCountry = {}, byType = {};
+  let total = 0;
+
+  function renderStats() {
+    $('k-total').textContent = total.toLocaleString();
+    const now = Date.now();
+    while (arrivals.length && now - arrivals[0] > 60000) arrivals.shift();
+    const elapsed = Math.max(1, Math.min(60, (now - startedAt) / 1000));
+    $('k-rate').textContent = Math.round((arrivals.length / elapsed) * 60);
+
+    const top = Object.entries(byCountry).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const max = top.length ? top[0][1] : 1;
+    const box = $('top-sources');
+    box.replaceChildren();
+    for (const [name, n] of top) {
+      const row = el('div', 'row');
+      const bar = el('div', 'bar');
+      const fill = el('i');
+      fill.style.width = `${(n / max) * 100}%`;
+      bar.append(fill);
+      row.append(el('span', 'nm', name), bar, el('span', 'ct', String(n)));
+      box.append(row);
+    }
+
+    const tbox = $('types');
+    tbox.replaceChildren();
+    for (const [key, c] of Object.entries(CATALOG)) {
+      const row = el('div', 'legend');
+      row.style.setProperty('--c', c.color);
+      row.append(el('span', 'sw'), el('span', 'nm', c.label), el('span', 'ct', String(byType[key] || 0)));
+      tbox.append(row);
+    }
+  }
+  setInterval(renderStats, 700);
+  renderStats();
+
+  function addTicker(ev, c) {
+    const item = el('div', 'item');
+    item.style.setProperty('--c', c.color);
+    const top = el('div', 'top');
+    top.append(el('span', 't', new Date(ev.ts).toLocaleTimeString([], { hour12: false })), el('span', 'sev', `SEV ${ev.severity}`));
+    item.append(
+      top,
+      el('div', 'route', `${ev.src.city} → ${ev.dst.name}`),
+      el('div', 'meta', `${ev.label} · ${ev.service}/${ev.port} · ${ev.mitre.id}`),
+      el('div', 'det', ev.detail),
+    );
+    item.addEventListener('click', () => focusOn(ev));
+    const feed = $('feed');
+    feed.prepend(item);
+    while (feed.children.length > MAX_FEED) feed.lastChild.remove();
+  }
+
+  // ---------- Event handling ----------
+  function onEvent(ev) {
+    const c = CATALOG[ev.attack_type] || FALLBACK;
+    const arc = { id: ev.id, startLat: ev.src.lat, startLng: ev.src.lng, endLat: ev.dst.lat, endLng: ev.dst.lng, color: c.color };
+    const pt = { id: ev.id, lat: ev.src.lat, lng: ev.src.lng, color: c.color, radius: 0.3 };
+    arcs.push(arc);
+    points.push(pt);
+    while (arcs.length > MAX_ARCS) { arcs.shift(); points.shift(); }
+    refresh();
+
+    setTimeout(() => {
+      const ring = { id: ev.id, lat: ev.dst.lat, lng: ev.dst.lng, color: c.color };
+      rings.push(ring);
+      refresh();
+      setTimeout(() => { rings = rings.filter((r) => r !== ring); refresh(); }, 1500);
+    }, 900);
+    setTimeout(() => {
+      arcs = arcs.filter((a) => a !== arc);
+      points = points.filter((p) => p !== pt);
+      refresh();
+    }, 2600);
+
+    total += 1;
+    arrivals.push(Date.now());
+    byCountry[ev.src.country] = (byCountry[ev.src.country] || 0) + 1;
+    byType[ev.attack_type] = (byType[ev.attack_type] || 0) + 1;
+    addTicker(ev, c);
+  }
+
+  // ---------- In-browser demo simulator (used on static hosting or when the server is unreachable) ----------
+  let demoTimer = null, demoCounter = 0;
+  const demoRate = Math.min(15, Math.max(0.2, parseFloat(params.get('rate')) || 2.2));
+
+  function makeDemoEvent() {
+    const [key, prof] = pickWeighted(Object.entries(CATALOG), (e) => e[1].weight);
+    const s = pickWeighted(SOURCES, (x) => x[4]);
+    let t;
+    do { t = pick(SENSORS); } while (t[1] === s[2] && t[2] === s[3]);
+    const jitter = () => (Math.random() - 0.5) * 1.2;
+    const user = prof.users.length ? pick(prof.users) : null;
+    demoCounter += 1;
+    return {
+      id: `demo_${demoCounter}`,
+      ts: new Date().toISOString(),
+      attack_type: key,
+      label: prof.label,
+      severity: prof.sev,
+      port: pick(prof.ports),
+      service: prof.service,
+      detail: pick(prof.details).replace('{username}', user || ''),
+      username: user,
+      mitre: { id: prof.mitre[0], name: prof.mitre[1] },
+      src: { ip: `198.${Math.random() < 0.5 ? 18 : 19}.${Math.floor(Math.random() * 256)}.${1 + Math.floor(Math.random() * 254)}`,
+             country: s[0], city: s[1], lat: Math.max(-90, Math.min(90, s[2] + jitter())), lng: s[3] + jitter() },
+      dst: { name: t[0], lat: t[1], lng: t[2] },
+      simulated: true,
+    };
+  }
+  function startDemo() {
+    if (demoTimer !== null) return;
+    setMode('SIMULATED FEED · BROWSER');
+    const tick = () => {
+      onEvent(makeDemoEvent());
+      demoTimer = setTimeout(tick, (-Math.log(1 - Math.random()) / demoRate) * 1000);
+    };
+    tick();
+  }
+
+  // ---------- Live mode: WebSocket to the FastAPI server, else fall back to demo ----------
+  function connect() {
+    const staticHost = !location.host || location.protocol === 'file:' || location.protocol === 'blob:';
+    if (params.has('demo') || staticHost) { startDemo(); return; }
+    let gotEvent = false;
+    let ws;
+    try {
+      ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    } catch (_) { startDemo(); return; }
+    const timer = setTimeout(() => { if (!gotEvent) { ws.close(); startDemo(); } }, 3500);
+    ws.onmessage = (m) => {
+      if (!gotEvent) { gotEvent = true; clearTimeout(timer); setMode('SIMULATED FEED · SERVER'); }
+      try { onEvent(JSON.parse(m.data)); } catch (_) { /* ignore malformed frames */ }
+    };
+    ws.onclose = () => {
+      clearTimeout(timer);
+      if (!gotEvent) startDemo();
+      else { setMode('RECONNECTING…'); setTimeout(connect, 3000); }
+    };
+    ws.onerror = () => { /* onclose handles recovery */ };
+  }
+  connect();
+})();
+</script>
+</body>
+</html>
