@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Threat Map</title>
 <meta name="description" content="Real-time 3D cyber threat map showing simulated attack telemetry.">
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
@@ -77,7 +78,7 @@
   #nogl { position: fixed; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; text-align: center; padding: 30px; color: var(--dim); }
   @media (max-width: 860px) {
     #stats { display: none; }
-    #ticker { top: auto; left: 12px; right: 12px; bottom: 34px; width: auto; height: 30vh; }
+    #ticker { top: auto; left: 12px; right: 12px; bottom: 64px; width: auto; height: 30vh; }
     footer { left: 14px; bottom: 10px; }
     header { left: 14px; }
     h1 { font-size: 18px; }
@@ -204,7 +205,8 @@
     .ringColor((d) => (t) => rgba(d.color, 1 - t))
     .ringMaxRadius(5).ringPropagationSpeed(3.2).ringRepeatPeriod(700);
 
-  world.pointOfView({ lat: 25, lng: 10, altitude: 2.3 });
+  // On a portrait screen the globe is limited by width, so pull the camera back to keep it whole.
+  world.pointOfView({ lat: 25, lng: 10, altitude: innerWidth < innerHeight ? 3.4 : 2.3 });
   const controls = world.controls();
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.55;
