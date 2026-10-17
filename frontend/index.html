@@ -74,10 +74,18 @@
   .item .route { font-size: 13px; color: #fff; margin: 2px 0; }
   .item .meta { font-size: 10.5px; color: var(--c); }
   .item .det { font-size: 10.5px; color: var(--dim); }
+  #detail { right: 384px; bottom: 18px; width: 300px; max-height: 60vh; overflow: auto; }
+  #detail .close { float: right; cursor: pointer; background: none; border: 0; color: var(--dim); font: inherit; }
+  #detail .verdict { margin-bottom: 12px; }
+  #detail h3 { margin: 0 0 4px; font-size: 10px; letter-spacing: .16em; color: var(--dim); text-transform: uppercase; font-weight: 600; }
+  #detail .name { font-size: 13px; color: #fff; }
+  #detail .tech { font-size: 10.5px; color: var(--cyan); }
+  #detail .why { font-size: 10.5px; color: var(--dim); }
   footer { position: fixed; left: 22px; bottom: 16px; z-index: 5; font-size: 10px; color: var(--dim); letter-spacing: .06em; max-width: 440px; }
   #nogl { position: fixed; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center; text-align: center; padding: 30px; color: var(--dim); }
   @media (max-width: 860px) {
     #stats { display: none; }
+    #detail { left: 12px; right: 12px; top: 130px; bottom: auto; width: auto; max-height: 36vh; }
     #ticker { top: auto; left: 12px; right: 12px; bottom: calc(var(--foot, 40px) + 22px); width: auto; height: 30vh; }
     footer { left: 14px; bottom: 10px; }
     header { left: 14px; }
@@ -111,6 +119,8 @@
   <h2>Live feed</h2>
   <div id="feed"></div>
 </aside>
+
+<aside id="detail" class="panel" hidden></aside>
 
 <footer id="foot">All events are synthetic. Source IPs come from the reserved 198.18.0.0/15 benchmarking range, so no real host is shown.</footer>
 <div id="nogl">Couldn't load the 3D globe library. Check your connection and reload.</div>
@@ -276,6 +286,41 @@
   setInterval(renderStats, 700);
   renderStats();
 
+  // Display names for the session classes (mirrors backend/classify/taxonomy.py; a test checks the keys).
+  const CLASS_NAMES = {
+    malware_delivery: 'Malware delivery', post_login_commands: 'Commands after login',
+    proxy_tunnelling: 'Port forwarding', credential_guessing: 'Credential guessing',
+    scan_probe: 'Scan or probe', other: 'Other', abstain: 'No answer',
+  };
+
+  function verdictBlock(title, v) {
+    const box = el('div', 'verdict');
+    box.append(el('h3', undefined, title));
+    if (!v) { box.append(el('div', 'why', 'Not run for this session.')); return box; }
+    box.append(el('div', 'name', Object.hasOwn(CLASS_NAMES, v.label) ? CLASS_NAMES[v.label] : 'Unknown'));
+    if (v.mitre) box.append(el('div', 'tech', `${v.mitre.id} · ${v.mitre.name}`));
+    for (const reason of v.reasons || []) box.append(el('div', 'why', reason));
+    if (v.model) box.append(el('div', 'why', `model: ${v.model}`));
+    return box;
+  }
+
+  // Shows what the classifiers made of the session behind a feed item. Everything is text, and the
+  // model's free-text note is never sent to the page, only its class, technique and name.
+  function showDetail(ev) {
+    const panel = $('detail');
+    if (!ev.analysis) { panel.hidden = true; return; }
+    const close = el('button', 'close', 'close');
+    close.addEventListener('click', () => { panel.hidden = true; });
+    panel.replaceChildren(
+      close,
+      el('h2', undefined, 'Session analysis'),
+      verdictBlock('Rules', ev.analysis.rules),
+      verdictBlock('Model', ev.analysis.llm),
+      el('div', 'why', 'Automatic classification. It can be wrong. How it was checked is in the README.'),
+    );
+    panel.hidden = false;
+  }
+
   function addTicker(ev, c) {
     const item = el('div', 'item');
     item.style.setProperty('--c', c.color);
@@ -291,7 +336,7 @@
       el('div', 'meta', `${ev.label} · ${ev.service}/${ev.port} · ${ev.mitre.id}`),
       el('div', 'det', ev.detail),
     );
-    item.addEventListener('click', () => focusOn(ev));
+    item.addEventListener('click', () => { focusOn(ev); showDetail(ev); });
     const feed = $('feed');
     feed.prepend(item);
     while (feed.children.length > MAX_FEED) feed.lastChild.remove();

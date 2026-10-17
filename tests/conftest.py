@@ -2,9 +2,29 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from backend.classify.session import SessionRecord
 from backend.simulator import AttackSimulator
 
 START = datetime(2019, 5, 18, tzinfo=timezone.utc)
+
+
+@pytest.fixture
+def make_record():
+    """Build a session record, by default a bare connection with no login."""
+
+    def make(**changes):
+        fields = {
+            "event_id": "evt_000001",
+            "started": START,
+            "country": "Ireland",
+            "city": "Macroom",
+            "login_attempts": 0,
+            "logins_succeeded": 0,
+            "tunnel_requests": 0,
+        }
+        return SessionRecord(**(fields | changes))
+
+    return make
 
 
 @pytest.fixture

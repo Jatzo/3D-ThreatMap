@@ -1,0 +1,3 @@
+# Only for tools/classify_sessions.py --llm. The server, the tests and CI do not need it.
+-r requirements.txt
+anthropic>=1.15.0

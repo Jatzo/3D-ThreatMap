@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.catalog import ATTACK_TYPES
+from backend.classify.taxonomy import ABSTAIN, KEYS
 from backend.main import create_app
 from backend.models import AttackEvent
 from backend.sources import ReplaySource
@@ -64,6 +65,14 @@ def test_frontend_knows_every_backend_attack_type():
 def test_frontend_builds_the_page_without_innerhtml():
     html = INDEX.read_text(encoding="utf-8")
     assert not re.search(r"\.(innerHTML|outerHTML)\b|insertAdjacentHTML|document\.write", html)
+
+
+def test_frontend_knows_every_session_class_and_shows_the_analysis_as_text():
+    html = INDEX.read_text(encoding="utf-8")
+    for key in (*KEYS, ABSTAIN):
+        assert f"{key}:" in html, f"frontend is missing the session class {key}"
+    assert "Session analysis" in html
+    assert "note" not in html.split("function showDetail")[1].split("function addTicker")[0]
 
 
 def test_frontend_has_a_replay_badge_and_guards_its_lookups():
