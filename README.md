@@ -190,9 +190,11 @@ There are 108 tests. They cover the simulator (valid events, the same seed givin
 
 ## What is real, simulated and unverified
 
-Checked on 17 October 2026:
+Checked on 17 and 18 October 2026:
 
 - `ruff check .` passes and `pytest -q` passes (108 tests) on Python 3.13 with the newest versions of the dependencies.
+- GitHub Actions ran green on Python 3.10 and 3.12 (install, `ruff check .`, `pytest -q`) for the commit that added the demo GIF and the licence (`31e31dd`).
+- The Docker image built from the `Dockerfile` (234 MB) and ran as a non-root user. It answered `/api/health` with `mode: simulated`, served the page, and streamed events over the WebSocket with source addresses in `198.18.0.0/15`. The image does not include `tools/`, so run the converter outside the container.
 - The server starts with `uvicorn backend.main:app` and the page connects to it. In one embedded browser at 1440, 800 and 375 px wide, the globe, arcs, impact rings, feed and stats animate, clicking a feed item turns the globe to that source, nothing scrolls sideways, and the page loads its scripts and textures without a 404.
 - With the server stopped (page served by a plain static file server), and with `?demo`, the page falls back to the in-browser simulator and says so in its badge.
 - The demo GIF was recorded from the default simulator in Chrome at 1280 by 720 px, and six frames across it were checked by eye: arcs and rings landing, the globe zooming to a clicked source, then rotating on. It runs at 8 frames a second, so it looks choppier than the live page.
@@ -213,8 +215,7 @@ Not verified:
 - Accuracy was measured on 50 sessions of one day against labels that follow the guide and that no independent analyst wrote or checked, so the figures are not independent evidence that either classifier is right.
 - Only one day of the dataset was tried. Other days, and the two Cowrie versions the dataset spans, may differ. The Cowrie message formats the converter reads come from that one day.
 - The classes and their order are my reading of the data. The dataset's city lookups were not checked for accuracy.
-- The Docker image has not been built. It does not include `tools/`, so run the converter outside the container.
-- The GitHub Actions workflow (Python 3.10 and 3.12) has not been seen running. Only 3.13 was run locally.
+- Replay mode inside the Docker container was not tried.
 - Opening `index.html` straight from disk (`file://`), Firefox, Safari and real phones.
 - Frame rate. The embedded browser used for testing ran at about 20 frames a second, so feed items faded in slowly there.
 - The CDN files are not pinned to an exact version and have no integrity hashes. On the test date `globe.gl@2` resolved to 2.46.2.
