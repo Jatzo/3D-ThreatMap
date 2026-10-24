@@ -106,7 +106,6 @@ def create_app(
                 await task
 
     app = FastAPI(title="Threat Map", version="0.1.0", lifespan=lifespan)
-    app.state.hub = hub
 
     @app.get("/api/health")
     async def health() -> dict:

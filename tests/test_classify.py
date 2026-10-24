@@ -96,10 +96,18 @@ def test_a_username_with_control_characters_or_too_long_is_dropped():
 
 def test_the_record_never_holds_a_password_even_from_a_login_message():
     events = [
-        raw("cowrie.login.success", "2019-05-18T00:00:01Z", username="root",
-            password="hunter2secret", message="login attempt [root/hunter2secret] succeeded"),
-        raw("cowrie.command.success", "2019-05-18T00:00:02Z",
-            message="Command found: echo root:hunter2secret|chpasswd"),
+        raw(
+            "cowrie.login.success",
+            "2019-05-18T00:00:01Z",
+            username="root",
+            password="hunter2secret",
+            message="login attempt [root/hunter2secret] succeeded",
+        ),
+        raw(
+            "cowrie.command.success",
+            "2019-05-18T00:00:02Z",
+            message="Command found: echo root:hunter2secret|chpasswd",
+        ),
         raw("cowrie.command.success", "2019-05-18T00:00:03Z", message="Command found: uname -a"),
     ]
     record = build_record("evt_1", ASSUMED_START, "X", "Y", events)
@@ -144,12 +152,20 @@ def test_evidence_leaves_out_place_and_time(make_record):
 
 def test_rules_follow_the_tie_break_order(make_record):
     cases = [
-        (dict(downloads=["hxxp://a[.]b/x"], commands_total=2, tunnel_requests=3,
-              login_attempts=4), "malware_delivery"),
-        (dict(commands=["wget hxxp://a[.]b/x"], commands_total=1, login_attempts=1),
-         "malware_delivery"),
-        (dict(commands=["uname -a"], commands_total=1, tunnel_requests=3, login_attempts=2),
-         "post_login_commands"),
+        (
+            dict(
+                downloads=["hxxp://a[.]b/x"], commands_total=2, tunnel_requests=3, login_attempts=4
+            ),
+            "malware_delivery",
+        ),
+        (
+            dict(commands=["wget hxxp://a[.]b/x"], commands_total=1, login_attempts=1),
+            "malware_delivery",
+        ),
+        (
+            dict(commands=["uname -a"], commands_total=1, tunnel_requests=3, login_attempts=2),
+            "post_login_commands",
+        ),
         (dict(tunnel_requests=3, login_attempts=2), "proxy_tunnelling"),
         (dict(login_attempts=2), "credential_guessing"),
         (dict(), "scan_probe"),
@@ -165,11 +181,18 @@ def test_rules_follow_the_tie_break_order(make_record):
 def test_the_colour_category_always_comes_from_the_rules_label():
     sessions = {
         "a": [raw("cowrie.session.connect", "2019-05-18T00:00:00Z", geolocation_data=GEO)],
-        "b": [raw("cowrie.login.failed", "2019-05-18T01:00:00Z", geolocation_data=GEO,
-                  username="x")],
+        "b": [
+            raw("cowrie.login.failed", "2019-05-18T01:00:00Z", geolocation_data=GEO, username="x")
+        ],
         "c": [raw("cowrie.direct-tcpip.request", "2019-05-18T02:00:00Z", geolocation_data=GEO)],
-        "d": [raw("cowrie.session.file_download", "2019-05-18T03:00:00Z", geolocation_data=GEO,
-                  url="http://a.b/c")],
+        "d": [
+            raw(
+                "cowrie.session.file_download",
+                "2019-05-18T03:00:00Z",
+                geolocation_data=GEO,
+                url="http://a.b/c",
+            )
+        ],
     }
     records = []
     events, _ = convert_sessions(sessions, records)
@@ -193,13 +216,12 @@ def test_free_text_from_the_model_cannot_travel_with_an_event():
 def test_an_event_with_an_analysis_round_trips():
     event = AttackSimulator(seed=1).next_event()
     analysis = Analysis(rules=Verdict(label="scan_probe", reasons=["no login"]))
-    again = AttackEvent.model_validate_json(event.model_copy(update={"analysis": analysis})
-                                            .model_dump_json())
+    again = AttackEvent.model_validate_json(
+        event.model_copy(update={"analysis": analysis}).model_dump_json()
+    )
     assert again.analysis.rules.label == "scan_probe"
 
 
 def test_the_folder_for_local_data_is_not_committed():
     ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "/local/" in ignored
-
-

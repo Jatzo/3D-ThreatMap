@@ -119,7 +119,7 @@ def _command_texts(events: list[dict]) -> list[str]:
             continue
         for prefix in COMMAND_PREFIXES:
             if message.startswith(prefix):
-                texts.append(message[len(prefix):])
+                texts.append(message[len(prefix) :])
                 break
     return texts
 

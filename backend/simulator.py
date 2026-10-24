@@ -60,16 +60,14 @@ class AttackSimulator:
             detail=detail,
             username=username,
             mitre=Mitre(id=profile.mitre_id, name=profile.mitre_name),
-            src=Source(
-                ip=self._random_ip(), country=src.country, city=src.city, lat=lat, lng=lng
-            ),
+            src=Source(ip=self._random_ip(), country=src.country, city=src.city, lat=lat, lng=lng),
             dst=Target(name=dst.name, lat=dst.lat, lng=dst.lng),
         )
 
     async def stream(self, rate: float = 2.0) -> AsyncIterator[AttackEvent]:
         """Yield events forever with Poisson-distributed arrivals (`rate` events/sec)."""
         if rate <= 0:
-            raise ValueError("rate must be positive")
+            raise ValueError("The event rate must be above 0.")
         while True:
             yield self.next_event()
             await asyncio.sleep(self._rng.expovariate(rate))

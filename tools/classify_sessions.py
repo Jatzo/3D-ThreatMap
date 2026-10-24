@@ -22,7 +22,7 @@ import json
 import sys
 from pathlib import Path
 
-from backend.classify.llm import DEFAULT_MODEL, LlmClassifier, SpendCapReached
+from backend.classify.llm import DEFAULT_MAX_SPEND, DEFAULT_MODEL, LlmClassifier, SpendCapReached
 from backend.classify.rules import classify_rules
 from backend.classify.session import SessionRecord, read_records
 from backend.models import Analysis, AttackEvent
@@ -70,7 +70,9 @@ def main() -> int:
     parser.add_argument("--limit", type=int, help="run the model only on the first N sessions")
     parser.add_argument("--llm", action="store_true", help="also ask the model (spends money)")
     parser.add_argument("--model", default=DEFAULT_MODEL)
-    parser.add_argument("--max-spend", type=float, default=5.0, help="dollars, a hard cap")
+    parser.add_argument(
+        "--max-spend", type=float, default=DEFAULT_MAX_SPEND, help="dollars, a hard cap"
+    )
     parser.add_argument("--cache", type=Path, default=Path("local/llm_cache.jsonl"))
     parser.add_argument("--dry-run", action="store_true", help="print the cost bound and stop")
     parser.add_argument("--enrich-replay", type=Path)
@@ -91,8 +93,10 @@ def main() -> int:
     if args.llm or args.dry_run:
         classifier = LlmClassifier(None, args.model, args.max_spend, args.cache)
         calls, worst = classifier.estimate(chosen)
-        print(f"{len(chosen)} sessions selected, {calls} need a call (the rest are cached). "
-              f"Worst case ${worst:.2f} at list price for {args.model}; cap ${args.max_spend:.2f}.")
+        print(
+            f"{len(chosen)} sessions selected, {calls} need a call (the rest are cached). "
+            f"Worst case ${worst:.2f} at list price for {args.model}; cap ${args.max_spend:.2f}."
+        )
         if args.dry_run:
             return 0
         if worst > args.max_spend:
@@ -113,17 +117,24 @@ def main() -> int:
                 verdicts[record.event_id]["llm"] = classifier.classify(record)
         except SpendCapReached as stop:
             print(stop, file=sys.stderr)
-        print(f"Calls: {classifier.calls}. Cache hits: {classifier.cache_hits}. "
-              f"Spent: ${classifier.spent:.2f}.")
+        print(
+            f"Calls: {classifier.calls}. Cache hits: {classifier.cache_hits}. "
+            f"Spent: ${classifier.spent:.2f}."
+        )
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as handle:
         for event_id, found in verdicts.items():
-            handle.write(json.dumps({
-                "event_id": event_id,
-                "rules": found["rules"].model_dump(mode="json"),
-                "llm": found["llm"].model_dump(mode="json") if found["llm"] else None,
-            }) + "\n")
+            handle.write(
+                json.dumps(
+                    {
+                        "event_id": event_id,
+                        "rules": found["rules"].model_dump(mode="json"),
+                        "llm": found["llm"].model_dump(mode="json") if found["llm"] else None,
+                    }
+                )
+                + "\n"
+            )
     print(f"Wrote {len(verdicts)} verdicts to {args.out}.")
 
     if args.enrich_replay and args.enriched_out:

@@ -1,3 +1,4 @@
+import base64
 import re
 import time
 from pathlib import Path
@@ -79,6 +80,41 @@ def test_frontend_has_a_replay_badge_and_guards_its_lookups():
     html = INDEX.read_text(encoding="utf-8")
     assert "REPLAYED PUBLIC DATA" in html
     assert "Object.hasOwn(CATALOG" in html
+
+
+def _embedded_pngs(html: str) -> list[bytes]:
+    encoded = re.findall(r"data:image/png;base64,([A-Za-z0-9+/=]+)", html)
+    return [base64.b64decode(item) for item in encoded]
+
+
+def _png_chunk_types(data: bytes) -> list[str]:
+    types, position = [], 8
+    while position < len(data):
+        length = int.from_bytes(data[position : position + 4], "big")
+        types.append(data[position + 4 : position + 8].decode("ascii"))
+        position += 12 + length
+    return types
+
+
+def test_the_page_carries_a_favicon_and_a_header_mark_made_of_plain_pixels():
+    html = INDEX.read_text(encoding="utf-8")
+    assert 'rel="icon" href="data:,"' not in html
+    images = _embedded_pngs(html)
+    assert len(images) == 2, "expected one favicon and one header mark"
+    for data in images:
+        assert data.startswith(b"\x89PNG\r\n\x1a\n")
+        # Image files can carry hidden provenance and editing data in extra chunks.
+        assert set(_png_chunk_types(data)) <= {"IHDR", "PLTE", "tRNS", "IDAT", "IEND"}
+
+
+def test_the_credit_opens_in_a_new_tab_and_leaves_the_status_line_alone():
+    html = INDEX.read_text(encoding="utf-8")
+    link = re.search(r'<a class="credit"[^>]*>', html)
+    assert link is not None
+    assert 'target="_blank"' in link.group(0)
+    assert 'rel="noopener"' in link.group(0)
+    # The replay and simulator wording rewrites this element, so the credit must not live in it.
+    assert '<div class="sub" id="sub">live attack telemetry</div>' in html
 
 
 def test_replayed_data_is_reported_as_real_by_health_and_the_stream(write_replay):

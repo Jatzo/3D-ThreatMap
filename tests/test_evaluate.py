@@ -17,7 +17,7 @@ def small_example():
         predicted=[SCAN, GUESS, GUESS, GUESS],
         strata=["s1", "s1", "s2", "s2"],
         sizes={"s1": 100, "s2": 10},
-        sampled={"s1": 2, "s2": 2},
+        labelled={"s1": 2, "s2": 2},
     )
 
 
@@ -105,8 +105,14 @@ def test_the_weights_follow_the_sessions_that_were_labelled_not_the_ones_sampled
     with key.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(["sheet_id", "event_id", "stratum"])
-        writer.writerows([["S01", "evt_1", "big"], ["S02", "evt_2", "big"],
-                          ["S03", "evt_3", "small"], ["S04", "evt_4", "small"]])
+        writer.writerows(
+            [
+                ["S01", "evt_1", "big"],
+                ["S02", "evt_2", "big"],
+                ["S03", "evt_3", "small"],
+                ["S04", "evt_4", "small"],
+            ]
+        )
     strata = tmp_path / "strata.json"
     strata.write_text(
         json.dumps({"sizes": {"big": 100, "small": 10}, "sampled": {"big": 2, "small": 2}}),
@@ -114,12 +120,23 @@ def test_the_weights_follow_the_sessions_that_were_labelled_not_the_ones_sampled
     )
     verdicts = tmp_path / "verdicts.jsonl"
     verdicts.write_text(
-        "\n".join(json.dumps({"event_id": f"evt_{n}", "rules": {"label": SCAN}, "llm": None})
-                  for n in range(1, 5)),
+        "\n".join(
+            json.dumps({"event_id": f"evt_{n}", "rules": {"label": SCAN}, "llm": None})
+            for n in range(1, 5)
+        ),
         encoding="utf-8",
     )
-    argv = ["evaluate", "--labels", str(sheet), "--key", str(key),
-            "--strata", str(strata), "--verdicts", str(verdicts)]
+    argv = [
+        "evaluate",
+        "--labels",
+        str(sheet),
+        "--key",
+        str(key),
+        "--strata",
+        str(strata),
+        "--verdicts",
+        str(verdicts),
+    ]
     monkeypatch.setattr(sys, "argv", argv)
     assert evaluate.main() == 0
     out = capsys.readouterr().out
@@ -143,8 +160,17 @@ def test_the_command_line_scores_the_rules_and_says_when_the_model_has_not_run(
         ),
         encoding="utf-8",
     )
-    argv = ["evaluate", "--labels", str(sheet), "--key", str(key),
-            "--strata", str(strata), "--verdicts", str(verdicts)]
+    argv = [
+        "evaluate",
+        "--labels",
+        str(sheet),
+        "--key",
+        str(key),
+        "--strata",
+        str(strata),
+        "--verdicts",
+        str(verdicts),
+    ]
     monkeypatch.setattr(sys, "argv", argv)
     assert evaluate.main() == 0
     out = capsys.readouterr().out

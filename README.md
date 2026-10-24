@@ -1,5 +1,7 @@
 # THREAT//MAP
 
+Built by [Jatzo](https://jatzo.co.uk).
+
 A 3D cyber threat map: glowing attack arcs on a rotating globe, a live event feed and running stats, driven by a Python (FastAPI) backend that streams events over WebSockets. By default every event is simulated. The server can also replay a day of real, public honeypot data, and a classifier can say what each replayed session was trying to do.
 
 > **Data note:** in the default mode every event is **synthetic**. Source IPs come from `198.18.0.0/15`, a range reserved for network benchmarking that is never routable on the public internet, so no real host is shown. The cities, weights and attack mix are made up for illustration and are not a measurement of anything. In replay mode the page says so in its badge and footer, and credits the dataset (see [Replaying public honeypot data](#replaying-public-honeypot-data)).
@@ -183,21 +185,23 @@ The server writes `ts` with microseconds. The in-browser demo simulator writes m
 ```bash
 pip install -r requirements-dev.txt
 ruff check .
+ruff format --check .
 pytest -q
 ```
 
-There are 108 tests. They cover the simulator (valid events, the same seed giving the same attack type, city, target and port, the reserved IP range, arc geometry), the event schema, the replay source (pauses, long and negative gaps, laps, bad and missing files), the converter (what it keeps, what it never outputs, the size limit), the session records (no passwords, credential-looking commands withheld, URLs written with brackets, limits), the rules, the labelling pack (stratification, whole small strata, a sheet with no classifier output), the evaluation arithmetic against hand counts, the model classifier against a stand-in client (answer handling, refusals, caching, the spend cap, injection markers), the API and WebSocket stream in both modes, and a few frontend checks: every backend `attack_type` key and session class appears as text in `frontend/index.html`, the page never uses `innerHTML`, and the replay badge exists. The frontend check does not compare labels, weights, ports or MITRE data, so the two catalogues can still drift apart. If you change `backend/catalog.py`, change the catalogue in `frontend/index.html` by hand.
+There are 110 tests. They cover the simulator (valid events, the same seed giving the same attack type, city, target and port, the reserved IP range, arc geometry), the event schema, the replay source (pauses, long and negative gaps, laps, bad and missing files), the converter (what it keeps, what it never outputs, the size limit), the session records (no passwords, credential-looking commands withheld, URLs written with brackets, limits), the rules, the labelling pack (stratification, whole small strata, a sheet with no classifier output), the evaluation arithmetic against hand counts, the model classifier against a stand-in client (answer handling, refusals, caching, the spend cap, injection markers), the API and WebSocket stream in both modes, and a few frontend checks: every backend `attack_type` key and session class appears as text in `frontend/index.html`, the page never uses `innerHTML`, and the replay badge exists. The frontend check does not compare labels, weights, ports or MITRE data, so the two catalogues can still drift apart. If you change `backend/catalog.py`, change the catalogue in `frontend/index.html` by hand.
 
 ## What is real, simulated and unverified
 
 Checked on 17 and 18 October 2026:
 
-- `ruff check .` passes and `pytest -q` passes (108 tests) on Python 3.13 with the newest versions of the dependencies.
+- `ruff check .` passes and `pytest -q` passes (110 tests) on Python 3.13 with the newest versions of the dependencies.
 - GitHub Actions ran green on Python 3.10 and 3.12 (install, `ruff check .`, `pytest -q`) for the commit that added the demo GIF and the licence (`31e31dd`).
 - The Docker image built from the `Dockerfile` (234 MB) and ran as a non-root user. It answered `/api/health` with `mode: simulated`, served the page, and streamed events over the WebSocket with source addresses in `198.18.0.0/15`. The image does not include `tools/`, so run the converter outside the container.
 - The server starts with `uvicorn backend.main:app` and the page connects to it. In one embedded browser at 1440, 800 and 375 px wide, the globe, arcs, impact rings, feed and stats animate, clicking a feed item turns the globe to that source, nothing scrolls sideways, and the page loads its scripts and textures without a 404.
 - With the server stopped (page served by a plain static file server), and with `?demo`, the page falls back to the in-browser simulator and says so in its badge.
-- The demo GIF was recorded from the default simulator in Chrome at 1280 by 720 px, and six frames across it were checked by eye: arcs and rings landing, the globe zooming to a clicked source, then rotating on. It runs at 8 frames a second, so it looks choppier than the live page.
+- The demo GIF was recorded from the default simulator in Chrome at 1280 by 720 px, and six frames across it were checked by eye: arcs and rings landing, the globe zooming to a clicked source, then rotating on. It runs at 8 frames a second, so it looks choppier than the live page. It was recorded before the Jatzo mark was added to the header, so it does not show it.
+- With the Jatzo mark and credit in the header, the header was checked at 1440 and 375 px: it clears the stats panel at 1440, nothing scrolls sideways at 375, and the page logged no errors. The mark is a 64 pixel PNG rebuilt from raw pixels, so the file carries no embedded metadata (a test checks the file for extra chunks).
 - One real day file (`cyberlab_2019-05-18.json.gz`) was converted to 7,157 events and replayed at 20 times speed. The badge, footer and stat labels changed to the replay wording at 375 and 1440 px, and the feed showed the original May 2019 times. With the page left open, swapping the replay server for the simulator server, or stopping it so the page fell back to its demo, put the synthetic wording back and reset the totals. Converted output was searched for passwords, URLs and the dataset's identifiers and held none.
 - The rules classified all 7,157 sessions of that day (2,087 scan or probe, 4,953 credential guessing, 77 port forwarding, 11 commands after login, 29 malware delivery), and the analysis panel opened on a feed item at 375 and 1440 px. In that browser check the model verdicts were made-up placeholders, not real output.
 
@@ -236,7 +240,7 @@ tests/      unit and API tests; fixtures/ holds a synthetic replay file
 
 ## Licence
 
-The code is released under the MIT licence (see `LICENSE`). The CyberLab dataset is not part of this repository and keeps its own licence, CC BY 4.0, with the credit given in [Replaying public honeypot data](#replaying-public-honeypot-data). The page loads Globe.gl, the earth textures and the fonts from public CDNs, and those keep their own licences.
+The code is released under the MIT licence (see `LICENSE`). The CyberLab dataset is not part of this repository and keeps its own licence, CC BY 4.0, with the credit given in [Replaying public honeypot data](#replaying-public-honeypot-data). The page loads Globe.gl, the earth textures and the fonts from public CDNs, and those keep their own licences. The Jatzo name and mark are not covered by the MIT licence: if you copy `frontend/index.html` for your own site, remove the mark, the credit link and the favicon first.
 
 ## Security notes
 

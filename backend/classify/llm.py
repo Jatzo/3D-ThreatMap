@@ -25,6 +25,7 @@ from .taxonomy import ABSTAIN, CLASSES, KEYS
 PROMPT_VERSION = "v1"
 DEFAULT_MODEL = "claude-opus-5-5"
 MAX_TOKENS = 2000
+DEFAULT_MAX_SPEND = 5.0  # dollars
 NOTE_LIMIT = 400
 # Dollars per million tokens, (input, output), from the Anthropic price list on 17 October 2026.
 PRICES: dict[str, tuple[float, float]] = {
@@ -89,7 +90,7 @@ class LlmClassifier:
         self,
         client,
         model: str = DEFAULT_MODEL,
-        max_spend: float = 5.0,
+        max_spend: float = DEFAULT_MAX_SPEND,
         cache_path: Path | None = None,
         api_errors: tuple[type[Exception], ...] | None = None,
     ) -> None:

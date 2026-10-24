@@ -31,11 +31,11 @@ def score(
     predicted: list[str],
     strata: list[str],
     sizes: dict[str, int],
-    sampled: dict[str, int],
+    labelled: dict[str, int],
 ) -> dict:
     """Accuracy (plain and re-weighted), per-stratum results, per-class scores, confusion."""
     hits = [t == p for t, p in zip(truth, predicted, strict=True)]
-    weights = [sizes[s] / sampled[s] for s in strata]
+    weights = [sizes[s] / labelled[s] for s in strata]
     per_stratum: dict[str, list[int]] = {}
     for stratum, hit in zip(strata, hits, strict=True):
         got = per_stratum.setdefault(stratum, [0, 0])

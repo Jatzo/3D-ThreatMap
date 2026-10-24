@@ -25,9 +25,13 @@ def population(make_record, counts):
 
 
 def test_a_session_is_placed_by_what_it_did_not_by_a_classifier(make_record):
-    for name, expected in (("download", "download"), ("commands", "commands"),
-                           ("tunnelling", "tunnelling"), ("login_only", "login_only"),
-                           ("connect_only", "connect_only")):
+    for name, expected in (
+        ("download", "download"),
+        ("commands", "commands"),
+        ("tunnelling", "tunnelling"),
+        ("login_only", "login_only"),
+        ("connect_only", "connect_only"),
+    ):
         assert stratum(population(make_record, {name: 1})[0]) == expected
 
 

@@ -25,8 +25,15 @@ class FakeApiError(Exception):
     pass
 
 
-def answer(label="credential_guessing", reasoning="Two logins were tried.", *, stop="end_turn",
-           text=None, tokens_in=500, tokens_out=300):
+def answer(
+    label="credential_guessing",
+    reasoning="Two logins were tried.",
+    *,
+    stop="end_turn",
+    text=None,
+    tokens_in=500,
+    tokens_out=300,
+):
     body = text if text is not None else json.dumps({"label": label, "reasoning": reasoning})
     return SimpleNamespace(
         stop_reason=stop,
@@ -216,13 +223,23 @@ def test_the_dry_run_prints_the_cost_bound_and_needs_no_package_or_key(
 ):
     sessions = tmp_path / "sessions.jsonl"
     sessions.write_text(
-        "\n".join(make_record(event_id=f"evt_{n:06d}", login_attempts=n).model_dump_json()
-                  for n in range(1, 4)),
+        "\n".join(
+            make_record(event_id=f"evt_{n:06d}", login_attempts=n).model_dump_json()
+            for n in range(1, 4)
+        ),
         encoding="utf-8",
     )
     out = tmp_path / "verdicts.jsonl"
-    argv = ["classify", "--sessions", str(sessions), "--out", str(out), "--dry-run",
-            "--cache", str(tmp_path / "cache.jsonl")]
+    argv = [
+        "classify",
+        "--sessions",
+        str(sessions),
+        "--out",
+        str(out),
+        "--dry-run",
+        "--cache",
+        str(tmp_path / "cache.jsonl"),
+    ]
     monkeypatch.setattr(sys, "argv", argv)
     assert classify_sessions.main() == 0
     assert "3 sessions selected, 3 need a call" in capsys.readouterr().out
@@ -235,18 +252,32 @@ def test_rules_run_on_every_session_without_a_key_and_enrich_the_replay(
     replay = write_replay([0, 1, 2])
     sessions = tmp_path / "sessions.jsonl"
     sessions.write_text(
-        "\n".join(make_record(event_id=f"evt_{n:06d}", login_attempts=n - 1).model_dump_json()
-                  for n in range(1, 4)),
+        "\n".join(
+            make_record(event_id=f"evt_{n:06d}", login_attempts=n - 1).model_dump_json()
+            for n in range(1, 4)
+        ),
         encoding="utf-8",
     )
     out, enriched = tmp_path / "verdicts.jsonl", tmp_path / "enriched.jsonl"
-    argv = ["classify", "--sessions", str(sessions), "--out", str(out),
-            "--enrich-replay", str(replay), "--enriched-out", str(enriched)]
+    argv = [
+        "classify",
+        "--sessions",
+        str(sessions),
+        "--out",
+        str(out),
+        "--enrich-replay",
+        str(replay),
+        "--enriched-out",
+        str(enriched),
+    ]
     monkeypatch.setattr(sys, "argv", argv)
     assert classify_sessions.main() == 0
     events = [AttackEvent.model_validate_json(line) for line in enriched.read_text().splitlines()]
     assert [e.analysis.rules.label for e in events] == [
-        "scan_probe", "credential_guessing", "credential_guessing"]
+        "scan_probe",
+        "credential_guessing",
+        "credential_guessing",
+    ]
     assert all(e.analysis.llm is None for e in events)
 
 
